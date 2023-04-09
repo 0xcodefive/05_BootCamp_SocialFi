@@ -23,13 +23,13 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using Strings for uint256;
 
-    uint8 public levels;
-    uint16 public royaltyFee;
-    uint256 public totalAmounts;
-    uint256 publicSaleTokenPrice = 0.1 ether;
-    string public baseURI;
-    mapping (uint256 => uint256) public authorsAmounts;
-    IUniswapV2Router02 public immutable uniswapRouter;
+    uint8 public levels; // Количество уровней рейтинга авторов
+    uint16 public royaltyFee; // Рояльти за продажу NFT
+    uint256 public totalAmounts; // Общая сумма оплат в Eth, прошедшая через контракт, используется для определения рейтинга авторов
+    uint256 publicSaleTokenPrice = 0.1 ether; // Цена создания нового NFT (нового канала)
+    string public baseURI; // Базовая ссылка на папку с метаданными NFT
+    mapping (uint256 => uint256) public authorsAmounts; // Сумма оплаты по каждому автору (каналу), прошедшая через контракт
+    IUniswapV2Router02 public uniswapRouter; // Провайдер для перерасчета платы в токенах на Eth
 
     enum Types {
         notModerated,
@@ -52,7 +52,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
         Participants participants;
     }
 
-    mapping(uint256 => address) public managers;
+    mapping(uint256 => address) public managers; // Менеджер канала, который является валидатором на сессиях
     mapping(uint256 => address[]) public donateTokenAddressesByAuthor;
     mapping(uint256 => mapping(address => bool)) public whiteListByAuthor;
     mapping(uint256 => mapping(address => bool)) public blackListByAuthor;
@@ -66,6 +66,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     event PurchaseIsAwaitingConfirmation(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
     event PurchaseConfirmed(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
     event PurchaseRejected(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
+    event PurchaseCanceled(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
 
     modifier supportsERC20(address _address){
         require(
@@ -106,7 +107,11 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
 
     function setPublicSaleTokenPrice(uint256 _newPrice) external onlyOwner {
         publicSaleTokenPrice = _newPrice;
-    }    
+    }
+
+    function setNewRouter(address _uniswapRouterAddress) external onlyOwner {
+        uniswapRouter = IUniswapV2Router02(_uniswapRouterAddress);
+    }
 
     function safeMint() public nonReentrant payable {
         uint256 _balanceOf = balanceOf(msg.sender);
@@ -386,6 +391,24 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
             participants.notConfirmed.push(msg.sender);
             emit PurchaseIsAwaitingConfirmation(msg.sender, author, sessionId);
         }
+    }
+
+    function cancelByParticipant(uint256 author, uint256 sessionId) public nonReentrant returns(bool) {
+        Session storage session = sessionByAuthor[author][sessionId];
+        Participants storage participants = session.participants;
+        require(isAddressExist(msg.sender, participants.notConfirmed), "You are not in the lists of participants");
+        require(!isAddressExist(msg.sender, participants.confirmed), "You have already signed up for the session, contact the author to cancel");
+        address[] storage notConfirmed = participants.notConfirmed;
+        for (uint i = 0; i < notConfirmed.length; i++) {
+            if (notConfirmed[i] == msg.sender) {
+                notConfirmed[i] = notConfirmed[notConfirmed.length - 1];
+                notConfirmed.pop();
+                unblockAndReject(msg.sender, session.tokenAddress, session.price);
+                emit PurchaseCanceled(msg.sender, author, sessionId);
+                return true;
+            }
+        }
+        return false;
     }
 
     function getTokenPrice(address tokenAddress) public view returns (uint256) {
