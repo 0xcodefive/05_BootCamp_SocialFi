@@ -42,6 +42,11 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
         address[] rejected;
     }
 
+    struct Rating {
+        uint256 like;
+        uint256 dislike;
+    }
+
     struct Session {
         address tokenAddress;
         uint256 price;
@@ -50,6 +55,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
         string name;
         Types typeOf;
         Participants participants;
+        Rating rating;
     }
 
     mapping(uint256 => address) public managers; // Менеджер канала, который является валидатором на сессиях
@@ -57,6 +63,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     mapping(uint256 => mapping(address => bool)) public whiteListByAuthor;
     mapping(uint256 => mapping(address => bool)) public blackListByAuthor;
     mapping(uint256 => Session[]) public sessionByAuthor;
+    mapping(uint256 => mapping(uint256 => mapping(address => bool))) public participantVoted;
 
     mapping(address => uint256) internal blockedForWithdraw;
 
@@ -67,6 +74,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     event PurchaseConfirmed(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
     event PurchaseRejected(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
     event PurchaseCanceled(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
+    event NewVote(bool isLike, address indexed participant, uint256 indexed author, uint256 indexed sessionId);
 
     modifier supportsERC20(address _address){
         require(
@@ -84,7 +92,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     modifier sessionIsOpenForSender(uint256 author, uint256 sessionId){
         require(!blackListByAuthor[author][msg.sender], "You are blacklisted by the author");
         Session memory session = sessionByAuthor[author][sessionId];
-        require(session.expirationTime > block.timestamp && session.participants.confirmed.length >= session.maxParticipants, "Session is closed");
+        require(session.expirationTime <= block.timestamp || session.participants.confirmed.length < session.maxParticipants, "Session is closed");
         Participants memory participants = session.participants;
         require(!isAddressExist(msg.sender, participants.rejected), "You are denied this session");
         require(!isAddressExist(msg.sender, participants.notConfirmed), "Expect a decision on your candidacy");
@@ -115,7 +123,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
 
     function safeMint() public nonReentrant payable {
         uint256 _balanceOf = balanceOf(msg.sender);
-        require(publicSaleTokenPrice * (2 ** _balanceOf) <= msg.value, "Ether value sent is not correct");
+        require(publicSaleTokenPrice * (2 ** _balanceOf) <= msg.value, "Value sent is not correct");
         uint256 nextIndex = totalSupply();
         managers[nextIndex] = msg.sender;
         _safeMint(msg.sender, nextIndex);
@@ -199,11 +207,12 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
         uint256 maxParticipants, 
         Types typeOf, 
         string memory name) supportsERC20(tokenAddress) onlyAuthor(author) public{
+        Rating memory rating = Rating(0, 0);  
         Participants memory participants = Participants(
             new address[](0),
             new address[](0),
             new address[](0)
-        );
+        );        
         Session memory session = Session ({
             tokenAddress: tokenAddress,
             price: price,
@@ -211,7 +220,8 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
             maxParticipants: maxParticipants,
             name: name,
             typeOf: typeOf,
-            participants: participants
+            participants: participants,
+            rating: rating
         });
         sessionByAuthor[author].push(session);
         emit NewSessionCreated(author, name, tokenAddress, price, expirationTime, maxParticipants, typeOf);
@@ -236,7 +246,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     function confirmParticipants(address participant, uint256 author, uint256 sessionId) onlyAuthor(author) public returns(bool) {
         Session storage session = sessionByAuthor[author][sessionId];
         Participants storage participants = session.participants;
-        require(!isAddressExist(msg.sender, participants.rejected), "Participant is denied this session");
+        require(!isAddressExist(msg.sender, participants.rejected), "Participant is denied");
         address[] storage notConfirmed = participants.notConfirmed;
         for (uint i = 0; i < notConfirmed.length; i++) {
             if (notConfirmed[i] == participant) {
@@ -254,7 +264,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     function unconfirmParticipants(address participant, uint256 author, uint256 sessionId) onlyAuthor(author) public returns(bool) {
         Session storage session = sessionByAuthor[author][sessionId];
         Participants storage participants = session.participants;
-        require(!isAddressExist(msg.sender, participants.rejected), "Participant is denied this session");
+        require(!isAddressExist(msg.sender, participants.rejected), "Participant is denied");
         address[] storage notConfirmed = participants.notConfirmed;
         for (uint i = 0; i < notConfirmed.length; i++) {
             if (notConfirmed[i] == participant) {
@@ -331,12 +341,6 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
         require(isAddressExist(tokenAddress, tokens), "Token doesn't exist");
 
         IERC20 token = IERC20(tokenAddress);
-        uint256 userBalance = token.balanceOf(msg.sender);
-        require(userBalance >= tokenAmount, "Balance is not enough");
-
-        uint256 userAllowance = token.allowance(msg.sender, address(this));
-        require(userAllowance >= tokenAmount, "Allowance is not enough");
-
         uint256 contractFee = contractFeeForAuthor(author, tokenAmount);
         token.transferFrom(msg.sender, owner(), contractFee);
         uint256 amount = tokenAmount - contractFee;
@@ -350,10 +354,6 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     function blockTokens(address tokenAddress, uint256 tokenAmount) internal nonReentrant {
         if (tokenAddress != address(0)){
             IERC20 token = IERC20(tokenAddress);
-            uint256 userBalance = token.balanceOf(msg.sender);
-            require(userBalance >= tokenAmount, "Balance is not enough");
-            uint256 userAllowance = token.allowance(msg.sender, address(this));
-            require(userAllowance >= tokenAmount, "Allowance is not enough");
             token.transferFrom(msg.sender, address(this), tokenAmount);
         }
         blockedForWithdraw[tokenAddress] += tokenAmount;
@@ -397,7 +397,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
         Session storage session = sessionByAuthor[author][sessionId];
         Participants storage participants = session.participants;
         require(isAddressExist(msg.sender, participants.notConfirmed), "You are not in the lists of participants");
-        require(!isAddressExist(msg.sender, participants.confirmed), "You have already signed up for the session, contact the author to cancel");
+        require(!isAddressExist(msg.sender, participants.confirmed), "Contact the author to cancel");
         address[] storage notConfirmed = participants.notConfirmed;
         for (uint i = 0; i < notConfirmed.length; i++) {
             if (notConfirmed[i] == msg.sender) {
@@ -409,6 +409,22 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
             }
         }
         return false;
+    }
+
+    function voteForSession(bool like, uint256 author, uint256 sessionId) public {
+        Session storage session = sessionByAuthor[author][sessionId];
+        require(session.expirationTime > block.timestamp, "Session is not closed");
+        Participants memory participants = session.participants;
+        require(isAddressExist(msg.sender, participants.confirmed), "You aren't in lists of participants");
+        require(!participantVoted[author][sessionId][msg.sender], "Your vote has already been cast");
+        participantVoted[author][sessionId][msg.sender] = true;
+        Rating storage rating = session.rating;
+        if (like) {
+            rating.like += 1;
+        } else {
+            rating.dislike += 1;
+        }
+        emit NewVote(like, msg.sender, author, sessionId);
     }
 
     function getTokenPrice(address tokenAddress) public view returns (uint256) {
