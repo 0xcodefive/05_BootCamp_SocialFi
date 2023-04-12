@@ -24,7 +24,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     using Strings for uint256;
 
     uint8 public levels; // Количество уровней рейтинга авторов
-    uint16 public royaltyFee; // Рояльти за продажу NFT
+    uint16 public royaltyFee = 1000; // Рояльти за продажу NFT
     uint256 public totalAmounts; // Общая сумма оплат в Eth, прошедшая через контракт, используется для определения рейтинга авторов
     uint256 publicSaleTokenPrice = 0.1 ether; // Цена создания нового NFT (нового канала)
     string public baseURI; // Базовая ссылка на папку с метаданными NFT
@@ -69,12 +69,12 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     mapping(uint256 => Session[]) public sessionByAuthor; // Сессии автора
     mapping(uint256 => mapping(uint256 => mapping(address => bool))) public participantVoted; // Списки проголосовавших пользователей
 
-    mapping(address => uint256) internal blockedForWithdraw; // Седства пользователей, заблокированные на контракте
+    mapping(address => uint256) internal blockedForWithdraw; // Сердства пользователей, заблокированные на контракте
 
     event Received(address indexed sender, uint256 value);
     event NewSessionCreated(uint256 indexed author, string name, address token, uint256 price, uint256 expirationTime, uint256 maxParticipants, Types typeOf);
     event Donate(address indexed sender, address indexed token, uint256 value, uint256 indexed author);
-    event PurchaseIsAwaitingConfirmation(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
+    event AwaitingConfirmation(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
     event PurchaseConfirmed(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
     event PurchaseRejected(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
     event PurchaseCanceled(address indexed participant, uint256 indexed author, uint256 indexed sessionId);
@@ -82,25 +82,25 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
 
     modifier supportsERC20(address _address){
         require(
-            _address == address(0) || IERC20(_address).totalSupply() > 0,
-            "Token does not support ERC20 interface"
+            _address == address(0) || IERC20(_address).totalSupply() > 0 && IERC20(_address).allowance(_address, _address) >= 0,
+            "Is not ERC20"
         );
         _;
     }
 
     modifier onlyAuthor(uint256 author){
-        require(ownerOf(author) == msg.sender || managers[author] == msg.sender , "You don't have enough rights");
+        require(ownerOf(author) == msg.sender || managers[author] == msg.sender , "Only author");
         _;
     }
     
     modifier sessionIsOpenForSender(uint256 author, uint256 sessionId){
-        require(!blackListByAuthor[author][msg.sender], "You are blacklisted by the author");
+        require(!blackListByAuthor[author][msg.sender], "You blacklisted");
         Session memory session = sessionByAuthor[author][sessionId];
         require(session.expirationTime > block.timestamp && session.participants.confirmed.length < session.maxParticipants, "Session is closed");
         Participants memory participants = session.participants;
-        require(!isAddressExist(msg.sender, participants.rejected), "You are denied this session");
-        require(!isAddressExist(msg.sender, participants.notConfirmed), "Expect a decision on your candidacy");
-        require(!isAddressExist(msg.sender, participants.confirmed), "You are already on the list of participants");
+        require(!isAddressExist(msg.sender, participants.rejected), "You denied");
+        require(!isAddressExist(msg.sender, participants.notConfirmed), "Expect decision on your candidacy");
+        require(!isAddressExist(msg.sender, participants.confirmed), "You already on list");
         _;
     }
 
@@ -108,7 +108,6 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
         uniswapRouter = IUniswapV2Router02(_uniswapRouterAddress);
         levels = _levelsCount;
         baseURI = _baseURI;
-        royaltyFee = 1000;
     }
 
     /***************Common interfaces BGN***************/
@@ -128,20 +127,30 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
         uniswapRouter = IUniswapV2Router02(_uniswapRouterAddress);
     }
 
+    function priceToMint(address minter) public view returns(uint256){
+        uint256 balance = balanceOf(minter);
+        return publicSaleTokenPrice * (2 ** balance);
+    }
+
     // Создать нового автора (то есть минт NFT)
     function safeMint() public nonReentrant payable {
-        uint256 _balanceOf = balanceOf(msg.sender);
-        require(publicSaleTokenPrice * (2 ** _balanceOf) <= msg.value, "Value sent is not correct");
+        require(priceToMint(msg.sender) <= msg.value, "Low value");
+        (bool success, ) = owner().call{value: msg.value}("");
+        require(success, "fail");
         uint256 nextIndex = totalSupply();
-        managers[nextIndex] = msg.sender;
+        totalAmounts += msg.value;
+        authorsAmounts[nextIndex] += msg.value;
         _safeMint(msg.sender, nextIndex);
     }
 
     // Получить uri метаданных NFT по id токена
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         _requireMinted(tokenId);
-        uint256 thisLevel = (10 ** levels) * authorsAmounts[tokenId] / (totalAmounts + 1);
+        uint256 thisLevel = (10 ** levels) * authorsAmounts[tokenId] / totalAmounts;
         uint256 uriNumber = myLog10(thisLevel);
+        if (uriNumber >= levels){
+            uriNumber = levels - 1;
+        }
         return
             bytes(baseURI).length > 0
                 ? string(abi.encodePacked(baseURI, uriNumber.toString(), ".json"))
@@ -150,11 +159,8 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
 
     // Вспомогательная функция подсчета логорифма
     function myLog10(uint256 x) internal pure returns (uint256) {
-        if (x == 0) {
-            return 0;
-        }
         uint256 result = 0;
-        while (x >= 10) {
+        while (x >= 10){
             x /= 10;
             result += 1;
         }
@@ -163,28 +169,28 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
 
     // Вызывается в случае отправки на контракт средств без вызова иных функций
     receive() external payable {
-        emit Received(_msgSender(), msg.value);
+        emit Received(msg.sender, msg.value);
     }
     /***************Common interfaces END***************/
 
     /***************Author options BGN***************/
     // Установить менеджера для автора, может только владелец NFT
     function setManager(address newManager, uint256 author) public {
-        require(ownerOf(author) == msg.sender, "You're not owner");
+        require(ownerOf(author) == msg.sender, "Only owner");
         managers[author] = newManager;
     }
 
     // Добавить адрес контракта токена для донатов
     function addDonateAddress(address tokenAddress, uint256 author) supportsERC20(tokenAddress) onlyAuthor(author) public {
         address[] storage tokens = donateTokenAddressesByAuthor[author];
-        require(!isAddressExist(tokenAddress, tokens), "Token already exists");
+        require(!isAddressExist(tokenAddress, tokens), "Already exists");
         tokens.push(tokenAddress);
     }
 
     // Удалить адрес контракта токенов для донатов 
     function removeDonateAddress(address tokenAddress, uint256 author) supportsERC20(tokenAddress) onlyAuthor(author) public {
         address[] storage tokens = donateTokenAddressesByAuthor[author];
-        require(isAddressExist(tokenAddress, tokens), "Token doesn't exist");
+        require(isAddressExist(tokenAddress, tokens), "Not exist");
         for (uint i = 0; i < tokens.length; i++) {
             if (tokens[i] == tokenAddress) {
                 tokens[i] = tokens[tokens.length - 1];
@@ -268,7 +274,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     function confirmParticipants(address participant, uint256 author, uint256 sessionId) onlyAuthor(author) public returns(bool) {
         Session storage session = sessionByAuthor[author][sessionId];
         Participants storage participants = session.participants;
-        require(!isAddressExist(msg.sender, participants.rejected), "Participant is denied");
+        require(isAddressExist(participant, participants.notConfirmed), "Is denied");
         address[] storage notConfirmed = participants.notConfirmed;
         for (uint i = 0; i < notConfirmed.length; i++) {
             if (notConfirmed[i] == participant) {
@@ -287,7 +293,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     function unconfirmParticipants(address participant, uint256 author, uint256 sessionId) onlyAuthor(author) public returns(bool) {
         Session storage session = sessionByAuthor[author][sessionId];
         Participants storage participants = session.participants;
-        require(!isAddressExist(msg.sender, participants.rejected), "Participant is denied");
+        require(isAddressExist(participant, participants.notConfirmed), "Is denied");
         address[] storage notConfirmed = participants.notConfirmed;
         for (uint i = 0; i < notConfirmed.length; i++) {
             if (notConfirmed[i] == participant) {
@@ -331,7 +337,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     function unblockAndReject(address participant, address tokenAddress, uint256 tokenAmount) internal nonReentrant {
         if (tokenAddress == address(0)){
             (bool success, ) = participant.call{value: tokenAmount}("");
-            require(success, "payment failed");
+            require(success, "fail");
         } else {
             IERC20 token = IERC20(tokenAddress);
             uint256 contractBalance = token.balanceOf(address(this));
@@ -355,10 +361,10 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     function paymentEth(uint256 author, uint256 value) internal nonReentrant {
         uint256 contractFee = contractFeeForAuthor(author, value);
         (bool success, ) = owner().call{value: contractFee}("");
-        require(success, "payment failed");
+        require(success, "fail");
         uint256 amount = value - contractFee;
         (success, ) = ownerOf(author).call{value: amount}("");
-        require(success, "payment failed");
+        require(success, "fail");
         authorsAmounts[author] += value;
         totalAmounts += value;
     }
@@ -366,7 +372,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     // Вспомогательная функция проведения оплат в токенах с учётом комиссий
     function paymentToken(address tokenAddress, uint256 tokenAmount, uint256 author) internal nonReentrant {
         address[] memory tokens = donateTokenAddressesByAuthor[author];
-        require(isAddressExist(tokenAddress, tokens), "Token doesn't exist");
+        require(isAddressExist(tokenAddress, tokens), "Token not exist");
 
         IERC20 token = IERC20(tokenAddress);
         uint256 contractFee = contractFeeForAuthor(author, tokenAmount);
@@ -390,14 +396,14 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
 
     // Функция донатов в базовом коине
     function donateEth(uint256 author) public payable{
-        require(msg.value > 0, "Donation is too low");
+        require(msg.value > 0, "Low value");
         paymentEth(author, msg.value);
         emit Donate(msg.sender, address(0), msg.value, author);
     }
 
     // Функция донатов в токенах
     function donateToken(address tokenAddress, uint256 tokenAmount, uint256 author) public{
-        require(tokenAmount > 0, "Donation is too low");
+        require(tokenAmount > 0, "Low value");
         paymentToken(tokenAddress, tokenAmount, author);
         emit Donate(msg.sender, tokenAddress, tokenAmount, author);
     }
@@ -411,7 +417,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
 
         if (whiteListByAuthor[author][msg.sender] || session.typeOf == Types.notModerated){
             if (tokenAddress == address(0)){
-                require(tokenAddress == address(0) && price == msg.value, "Error in payment value");
+                require(tokenAddress == address(0) && price == msg.value, "Error value");
                 paymentEth(author, msg.value);
             } else {
                 paymentToken(tokenAddress, price, author);
@@ -421,7 +427,7 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
         } else {
             blockTokens(tokenAddress, price);
             participants.notConfirmed.push(msg.sender);
-            emit PurchaseIsAwaitingConfirmation(msg.sender, author, sessionId);
+            emit AwaitingConfirmation(msg.sender, author, sessionId);
         }
     }
 
@@ -429,8 +435,8 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     function cancelByParticipant(uint256 author, uint256 sessionId) public nonReentrant returns(bool) {
         Session storage session = sessionByAuthor[author][sessionId];
         Participants storage participants = session.participants;
-        require(isAddressExist(msg.sender, participants.notConfirmed), "You are not in the lists of participants");
-        require(!isAddressExist(msg.sender, participants.confirmed), "Contact the author to cancel");
+        require(isAddressExist(msg.sender, participants.notConfirmed), "You are not in lists");
+        require(!isAddressExist(msg.sender, participants.confirmed), "Contact author to cancel");
         address[] storage notConfirmed = participants.notConfirmed;
         for (uint i = 0; i < notConfirmed.length; i++) {
             if (notConfirmed[i] == msg.sender) {
@@ -447,10 +453,10 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     // Голосование пользователей за прошедшую сессию, доступно только участниками один раз
     function voteForSession(bool like, uint256 author, uint256 sessionId) public {
         Session storage session = sessionByAuthor[author][sessionId];
-        require(session.expirationTime > block.timestamp, "Session is not closed");
+        require(session.expirationTime > block.timestamp, "Session not closed");
         Participants memory participants = session.participants;
-        require(isAddressExist(msg.sender, participants.confirmed), "You aren't in lists of participants");
-        require(!participantVoted[author][sessionId][msg.sender], "Your vote has already been cast");
+        require(isAddressExist(msg.sender, participants.confirmed), "You arent in lists");
+        require(!participantVoted[author][sessionId][msg.sender], "Your already voted");
         participantVoted[author][sessionId][msg.sender] = true;
         Rating storage rating = session.rating;
         if (like) {
@@ -479,29 +485,29 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
 
     // Стоимость рояльти владельца контракта для продажи NFT
     function royaltyInfo(uint256 tokenId, uint256 salePrice) external view override returns (address receiver, uint256 royaltyAmount) {
-        require(_exists(tokenId), "query for nonexistent token");
+        require(_exists(tokenId), "nonexistent");
         return (address(this), (salePrice * royaltyFee) / 10000);
     }    
 
     // Установить рояльти владельца контракта для продажи NFT
     function setRoyaltyFee(uint16 fee) external onlyOwner {
-        require (fee < 10000, "fee is too high");
+        require (fee < 10000, "too high");
         royaltyFee = fee;
     }
 
     // Вывести средства в базовом коине, доступные к выводу
     function withdraw() external onlyOwner nonReentrant {
-        require(address(this).balance > blockedForWithdraw[address(0)], "Eth balance not enough");
+        require(address(this).balance > blockedForWithdraw[address(0)], "not enough");
         uint256 amount = address(this).balance - blockedForWithdraw[address(0)];
         (bool success, ) = _msgSender().call{value: amount}("");
-        require(success, "withdraw failed");
+        require(success, "fail");
     }
 
     // Вывести средства в указанном токене, доступные к выводу
     function withdrawTokens(address _address) external onlyOwner nonReentrant {
         IERC20 token = IERC20(_address);
         uint256 tokenBalance = token.balanceOf(address(this));
-        require(tokenBalance > blockedForWithdraw[_address], "Token balance not enough");
+        require(tokenBalance > blockedForWithdraw[_address], "not enough");
         uint256 amount = tokenBalance - blockedForWithdraw[_address];
         token.transfer(_msgSender(), amount);
     }

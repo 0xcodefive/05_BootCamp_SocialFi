@@ -1,25 +1,17 @@
 const { ethers } = require("hardhat");
 const { assert, expect } = require("chai");
 
-describe("T0xC", function () {
-  let factoryNft, nft, factory, contract, owner, user, recipient;
+describe("SocialFi", function () {
+  let factoryToken, token, factory, contract, owner, user, recipient;
   beforeEach(async function () {
-    [owner, user, recipient] = await ethers.getSigners();
-    factoryNft = await ethers.getContractFactory("NFT0xC0de");
-    nft = await factoryNft.deploy("none");
-    factory = await ethers.getContractFactory("T0xC");
-    contract = await factory.deploy(nft.address);
-  });
-
-  it("Should have correct name, symbol and decimal places", async function () {
-    console.log(`Owner address: ${owner.address}`);
-    console.log(`User address: ${user.address}`);
-    console.log(`Contract address: ${contract.address}`);
-    console.log(`NFT address: ${nft.address}`);
-
-    expect(await contract.name()).to.equal("Token by 0xc0de");
-    expect(await contract.symbol()).to.equal("T0xC");
-    expect(await contract.decimals()).to.equal(18);
+    [owner, manager, user1, user2, user3] = await ethers.getSigners();
+    factoryToken = await ethers.getContractFactory("TestToken");
+    token = await factoryToken.deploy([owner, manager, user1, user2, user3]);
+    factory = await ethers.getContractFactory("SocialFi");
+    const param0 = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
+    const param1 = 5;
+    const param2 = "ipfs://QmSPdJyCiJCbJ2sWnomh6gHqkT2w1FSnp7ZnXxk3itvc14/";
+    contract = await factory.deploy(param0, param1, param2);
   });
 
   it("Should stake/unstake NFT and mint reward", async function () {
