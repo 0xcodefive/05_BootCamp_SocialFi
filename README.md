@@ -30,6 +30,8 @@ npx hardhat test
 
 ## Other information
 
-uniswapRouterAddress в сети BSCtestnet: 0xD99D1c33F9fC3444f8101754aBC46c52416550D1
+uniswapRouterAddress in BSC testnet: 0xD99D1c33F9fC3444f8101754aBC46c52416550D1
+
 levelsCount: 5
+
 baseURI: ipfs://QmSPdJyCiJCbJ2sWnomh6gHqkT2w1FSnp7ZnXxk3itvc14/
