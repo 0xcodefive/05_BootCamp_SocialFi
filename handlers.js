@@ -46,14 +46,10 @@ async function getUsersTokens(address) {
         tokens.push(tokenId);
       }
     }
-    return {
-      balance: tokens.length,
-      tokens: tokens,
-    };
   }
   return {
-    balance: 0,
-    tokens: [],
+    balance: balance,
+    tokens: tokens,
   };
 }
 
