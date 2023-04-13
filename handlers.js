@@ -45,10 +45,13 @@ async function getUsersTokens(address) {
       if (owner.toLowerCase() === address.toLowerCase()) {
         tokens.push(tokenId);
       }
+      if (tokens.length >= balance) {
+        break;
+      }
     }
   }
   return {
-    balance: balance,
+    balance: tokens.length,
     tokens: tokens,
   };
 }
