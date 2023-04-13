@@ -35,28 +35,40 @@ async function donateToken(tokenAddress, tokenAmountFromEther, author) {
   console.log(`donateToken hash: ${tx.hash}`);
 }
 
-async function getFirstUsersToken(address) {
+async function getUsersTokens(address) {
   const balance = await contract.balanceOf(address);
+  let tokens = [];
   if (balance > 0) {
     const totalSupply = await contract.totalSupply();
     for (let tokenId = 0; tokenId < totalSupply; tokenId++) {
       const owner = await contract.ownerOf(tokenId);
       if (owner.toLowerCase() === address.toLowerCase()) {
-        return tokenId;
+        tokens.push(tokenId);
       }
     }
+    return {
+      balance: tokens.length,
+      tokens: tokens,
+    };
   }
-  return undefined;
+  return {
+    balance: 0,
+    tokens: [],
+  };
 }
 
 async function main() {
-  let usersToken = await getFirstUsersToken(addressSigner);
-  console.error(`User token frst time: ${usersToken}`);
-  if (usersToken === undefined) {
+  let usersToken = await getUsersTokens(addressSigner);
+  console.error(
+    `User token frst time balance: ${usersToken.balance}, tokens: ${usersToken.tokens}`
+  );
+  if (usersToken.balance == 0) {
     await safeMint(addressSigner);
   }
-  usersToken = await getFirstUsersToken(addressSigner);
-  console.error(`User token scnd time: ${usersToken}`);
+  usersToken = await getUsersTokens(addressSigner);
+  console.error(
+    `User token scnd time balance: ${usersToken.balance}, tokens: ${usersToken.tokens}`
+  );
 }
 
 main().catch((error) => {
