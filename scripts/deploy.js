@@ -6,8 +6,10 @@ async function main() {
   const Name = "SocialFi";
   const Contract = await hre.ethers.getContractFactory(Name);
 
-  const param1 = "";
-  const result = await Contract.deploy(param1);
+  const param1 = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1";
+  const param2 = 5;
+  const param3 = "ipfs://QmSPdJyCiJCbJ2sWnomh6gHqkT2w1FSnp7ZnXxk3itvc14/";
+  const result = await Contract.deploy(param1, param2, param3);
   await result.deployed();
 
   console.log(`owner address: ${owner.address}`);
@@ -22,7 +24,7 @@ async function main() {
 
   await run(`verify:verify`, {
     address: result.address,
-    constructorArguments: [param1],
+    constructorArguments: [param1, param2, param3],
   });
 }
 

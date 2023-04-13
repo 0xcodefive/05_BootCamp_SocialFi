@@ -35,11 +35,13 @@ module.exports = {
   coverage: {
     exclude: ["test/", "node_modules/"],
   },
-  solidity: "0.8.18",
-  settings: {
-    optimizer: {
-      enabled: true,
-      runs: 200,
+  solidity: {
+    version: "0.8.18",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200,
+      },
     },
   },
   contractSizer: {

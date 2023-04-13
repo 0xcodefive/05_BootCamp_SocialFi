@@ -26,6 +26,8 @@ npm install dotenv --save
 
 npx hardhat
 npx hardhat test
+
+npx hardhat run scripts/deploy.js --network bnb_testnet
 ```
 
 ## Other information
@@ -35,3 +37,15 @@ uniswapRouterAddress in BSC testnet: 0xD99D1c33F9fC3444f8101754aBC46c52416550D1
 levelsCount: 5
 
 baseURI: ipfs://QmSPdJyCiJCbJ2sWnomh6gHqkT2w1FSnp7ZnXxk3itvc14/
+
+##
+
+```
+owner address: 0xc0DE5BCbE4dd5A6E1F7C827B898330d69CcEF216
+
+Deployed result address: 0x3dadF47D608cD37faC48590381B73CF5AC35684f
+
+Contract deployed to 0x3dadF47D608cD37faC48590381B73CF5AC35684f on bnb_testnet
+
+https://testnet.bscscan.com/address/0x3dadF47D608cD37faC48590381B73CF5AC35684f#code
+```

@@ -49,23 +49,23 @@ describe("SocialFi", function () {
     await expect(
       contract
         .connect(owner)
-        .createNewSessionByEth(0, 100, 1000, 10, 0, "Test session")
+        .createNewSessionByEth(0, 10 ** 6, 1000, 10, 0, "Test session")
     )
       .to.emit(contract, "NewSessionCreated")
       .withArgs(
         0,
         "Test session",
         "0x0000000000000000000000000000000000000000",
-        100,
+        10 ** 6,
         1000,
         10,
         0
       );
 
-    const sessions = await contract.sessionByAuthor(0);
+    const sessions = await contract.sessionByAuthor(0, 0);
     expect(sessions.length).to.equal(1);
     expect(sessions[0].name).to.equal("Test session");
-    expect(sessions[0].price).to.equal(100);
+    expect(sessions[0].price).to.equal(10 ** 6);
     expect(sessions[0].expirationTime).to.equal(1000);
     expect(sessions[0].maxParticipants).to.equal(10);
     expect(sessions[0].typeOf).to.equal(0);
@@ -80,7 +80,7 @@ describe("SocialFi", function () {
     await expect(
       contract
         .connect(owner)
-        .createNewSessionByEth(
+        .createNewSessionByToken(
           0,
           token.address,
           100,
@@ -93,7 +93,7 @@ describe("SocialFi", function () {
       .to.emit(contract, "NewSessionCreated")
       .withArgs(0, "Test session", token.address, 100, 1000, 10, 0);
 
-    const sessions = await contract.sessionByAuthor(0);
+    const sessions = await contract.sessionByAuthor(0, 0);
     expect(sessions.length).to.equal(1);
     expect(sessions[0].name).to.equal("Test session");
     expect(sessions[0].price).to.equal(100);

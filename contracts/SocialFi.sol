@@ -68,7 +68,6 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     mapping(uint256 => mapping(address => bool)) public blackListByAuthor; // Черный список автора
     mapping(uint256 => Session[]) public sessionByAuthor; // Сессии автора
     mapping(uint256 => mapping(uint256 => mapping(address => bool))) public participantVoted; // Списки проголосовавших пользователей
-
     mapping(address => uint256) internal blockedForWithdraw; // Сердства пользователей, заблокированные на контракте
 
     event Received(address indexed sender, uint256 value);
