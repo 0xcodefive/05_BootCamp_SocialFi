@@ -43,8 +43,11 @@ baseURI: ipfs://QmSPdJyCiJCbJ2sWnomh6gHqkT2w1FSnp7ZnXxk3itvc14/
 ```
 owner address: 0xc0DE5BCbE4dd5A6E1F7C827B898330d69CcEF216
 
-
 Contract deployed to 0x3dadF47D608cD37faC48590381B73CF5AC35684f on bnb_testnet
 
 https://testnet.bscscan.com/address/0x3dadF47D608cD37faC48590381B73CF5AC35684f#code
 ```
+
+## TO DO
+
+Disable **uniswapRouterAddress** verification for addresses not included in DEX
