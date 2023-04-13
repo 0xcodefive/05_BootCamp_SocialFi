@@ -4,15 +4,15 @@ Our web3 application provides an opportunity for bloggers and influencers to mon
 
 All payments are made through smart contracts, which guarantees security and transparency. Each channel is an NFT, which ensures ownership and earnings. To motivate the development of the channel, we have added a step-by-step reduction of the commission for our services depending on the profitability of the channel.
 
-Thanks to our service, authors can earn on donations and sessions, payment of which can be made in the base coin of the blockchain or in tokens specified by the author. Authors can create sessions by setting a price, a token for payment, the end time of registration, the maximum number of participants and the type of session.
+Our service allows authors to earn on donations and sessions, payment of which can be made in the base coin of the blockchain or in tokens specified by the author. Authors can create sessions by setting a price, a token for payment, the end time of registration, the maximum number of participants and the type of session.
 
-Whitelists allow you to automatically buy participation in a session without moderation, and blacklists allow you to block access to a session for certain users. All sessions have a structure with addresses of participants that can be confirmed, not confirmed or rejected by the author. In the case of a moderated session, funds are blocked on the contract until the author makes a decision on each participant.
+Whitelists allow authors to automatically buy participation in a session without moderation, and blacklists allow you to block access to a session for certain users. All sessions have a structure with addresses of participants that can be confirmed, not confirmed or rejected by the author. In the case of a moderated session, funds are blocked on the contract until the author makes a decision on each participant.
 
 Users can cancel the entry and refund the funds if their application has not yet been accepted by the author.
 
-After the end of the session, participants can leave likes or dislikes, and the rating of each session is stored in the blockchain, is not subject to censorship or falsification.
+After the session ends, participants can leave likes or dislikes, and the rating of each session is stored in the blockchain and is not subject to censorship or falsification.
 
-Each donation and session entry generates an event in the blockchain, which allows you to embed these events in various services.
+Each donation and session record generates an event in the blockchain, which allows embedding these events into various services.
 
 ##
 
