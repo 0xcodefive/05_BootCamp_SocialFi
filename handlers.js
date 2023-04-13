@@ -1,6 +1,6 @@
 require("dotenv").config();
 const { ethers } = require("ethers");
-const { ABI, CONTRACT_ADDRESS } = require("./constantsForNode");
+const { CONTRACT_ADDRESS, ABI, ERC20_ABI } = require("./constantsForNode");
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const BNBT_RPC_URL = process.env.BNBT_RPC_URL;
 
@@ -27,11 +27,52 @@ async function donateEthByEther(author, valueFromEther) {
   console.log(`donate hash: ${tx.hash}`);
 }
 
+// Получить список адресов токенов для доната по автору
+async function donateTokenAddressesByAuthor(author) {
+  let addresses = [];
+  let counter = 0;
+  while (counter < 999) {
+    try {
+      const addr = await contract.donateTokenAddressesByAuthor(
+        author,
+        counter++
+      );
+      addresses.push(addr);
+    } catch (err) {
+      // console.log(`Ошибка при получении адреса с индексом ${counter - 1}: ${err}`);
+      break;
+    }
+  }
+  return addresses;
+}
+
 // Донат в Токенах ВНИМАНИЕ, функция принимает значение кратное 10**18, то есть единице Ether
 async function donateTokenByEther(tokenAddress, tokenAmountFromEther, author) {
   const value = ethers.utils.parseEther(tokenAmountFromEther.toString());
+  const contractERC20 = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+  const allowance = await contractERC20.allowance(
+    addressSigner,
+    CONTRACT_ADDRESS
+  );
+  const balance = await contractERC20.balanceOf(addressSigner);
+  if (balance < value) {
+    return {
+      message: "Balance to low for donate",
+    };
+  }
+  if (allowance < value) {
+    const approveTx = await contractERC20.approve(CONTRACT_ADDRESS, balance);
+    console.log(`approve hash: ${approveTx.hash}`);
+    await signer.provider.waitForTransaction(
+      approveTx.hash,
+      WAIT_BLOCK_CONFIRMATIONS
+    );
+  }
   const tx = await contract.donateToken(tokenAddress, value, author);
   console.log(`donateToken hash: ${tx.hash}`);
+  return {
+    message: "Donation requested",
+  };
 }
 
 // Получение токенов пользователя, возвращает количество токенов и их id
@@ -58,18 +99,29 @@ async function getUsersTokens(address) {
 
 async function main() {
   let usersToken = await getUsersTokens(addressSigner);
-  console.error(
-    `User token frst time balance: ${usersToken.balance}, tokens: ${usersToken.tokens}`
+  console.log(
+    `User token balance: ${usersToken.balance}, tokens: ${usersToken.tokens}`
   );
   if (usersToken.balance == 0) {
     await safeMint(addressSigner);
   }
-  usersToken = await getUsersTokens(addressSigner);
-  console.error(
-    `User token scnd time balance: ${usersToken.balance}, tokens: ${usersToken.tokens}`
+
+  // await donateEthByEther(usersToken.tokens[0], 0.0282828);
+
+  const donateToken0 = await donateTokenAddressesByAuthor(0);
+  console.log(
+    `Author id: 0 has ${donateToken0.length} addresses to donate: ${donateToken0}`
   );
 
-  await donateEthByEther(usersToken.tokens[0], 0.0282828);
+  const donateToken1 = await donateTokenAddressesByAuthor(1);
+  console.log(
+    `Author id: 1 has ${donateToken1.length} addresses to donate: ${donateToken1}`
+  );
+
+  if (donateToken0.length > 0) {
+    const donationResult = await donateTokenByEther(donateToken0[0], 100, 0);
+    console.log(`Donation result: ${donationResult.message}`);
+  }
 }
 
 main().catch((error) => {
