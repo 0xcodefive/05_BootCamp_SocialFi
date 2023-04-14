@@ -344,7 +344,8 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
     // Вспомогательная функция расчета комиссии контракта в зависимости от уровня автора (зависит от количества средств, которые автор заработал)
     function contractFeeForAuthor(uint256 author, uint256 amount) public view returns(uint256){
         uint256 thisLevel = (10 ** levels) * authorsAmounts[author] / totalAmounts;
-        return amount * 2 / ( 100 * (2 ** myLog10(thisLevel)));
+        uint256 contractFee = amount * 2 / ( 100 * (2 ** myLog10(thisLevel)));
+        return contractFee > 0 ? contractFee : 1;
     }
     /***************Author options END***************/
 
@@ -461,8 +462,11 @@ contract SocialFi is ERC721Enumerable, IERC2981, Ownable, ReentrancyGuard {
         address[] memory path = new address[](2);
         path[0] = tokenAddress;
         path[1] = uniswapRouter.WETH();
-        uint256[] memory amountsOut = uniswapRouter.getAmountsOut(tokenAmount, path);
-        return amountsOut[1];
+        try uniswapRouter.getAmountsOut(tokenAmount, path) returns(uint256[] memory amountsOut){
+            return amountsOut[1];
+        } catch (bytes memory) {
+            return 0;
+        }
     }
     /***************User interfaces END***************/
 
