@@ -1,0 +1,5 @@
+import "hashes/sha256/512bit" as hash;
+
+def main(u32[8] proof, u32[8] result, u32[8] nonce) -> bool {
+    return result == hash(proof, nonce);
+}
