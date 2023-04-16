@@ -33,20 +33,41 @@ npx hardhat run scripts/deploy.js --network bnb_testnet
 ## Other information
 
 uniswapRouterAddress in BSC testnet: 0xD99D1c33F9fC3444f8101754aBC46c52416550D1
+
 uniswapRouterAddress in Mainnet Eth: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
 
 levelsCount: 5
 
 baseURI: ipfs://QmSPdJyCiJCbJ2sWnomh6gHqkT2w1FSnp7ZnXxk3itvc14/
 
-##
+## Deployed result for SocialFi
 
 ```
 owner address: 0xc0DE5BCbE4dd5A6E1F7C827B898330d69CcEF216
 
 Contract deployed to 0x3dadF47D608cD37faC48590381B73CF5AC35684f on bnb_testnet
 
+Successfully verified contract SocialFi on Etherscan:
 https://testnet.bscscan.com/address/0x3dadF47D608cD37faC48590381B73CF5AC35684f#code
+```
+
+## Deployed result for PrivateDonation
+
+const param1 = "0x3dadF47D608cD37faC48590381B73CF5AC35684f";
+
+const param2 = "0xc0dec91957A1839E899f0318440192D7E618c26C";
+
+const param3 = ethers.utils.parseEther("0.1");
+
+const param4 = 1500;
+
+```
+owner address: 0xc0DE5BCbE4dd5A6E1F7C827B898330d69CcEF216
+
+Contract deployed to 0x9D78fF872850cd765eCAd98dcF5C8B51AD5f7d11 on bnb_testnet
+
+Successfully verified contract PrivateDonation on Etherscan:
+https://testnet.bscscan.com/address/0x9D78fF872850cd765eCAd98dcF5C8B51AD5f7d11#code
 ```
 
 ## TO DO
